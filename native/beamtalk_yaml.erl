@@ -55,7 +55,7 @@ floats become Floats, true/false become booleans, null/~ become nil.
 Returns `Result ok: value` on success, `Result error:` on invalid YAML.
 Type error (non-String argument) still raises.
 """.
--spec 'parse:'(binary()) -> {ok, term()} | {error, term()}.
+-spec 'parse:'(binary()) -> beamtalk_result:t().
 'parse:'(YamlStr) when is_binary(YamlStr) ->
     case parse_yaml_string(YamlStr, 'parse:') of
         {error, _} = Err ->
@@ -86,7 +86,7 @@ Returns `Result ok: list` where list contains one value per YAML document
 (separated by ---). Returns `Result error:` on invalid YAML.
 Type error (non-String argument) still raises.
 """.
--spec 'parseAll:'(binary()) -> {ok, [term()]} | {error, term()}.
+-spec 'parseAll:'(binary()) -> beamtalk_result:t().
 'parseAll:'(YamlStr) when is_binary(YamlStr) ->
     case parse_yaml_string(YamlStr, 'parseAll:') of
         {error, _} = Err ->
@@ -136,7 +136,7 @@ Read a file and parse it as YAML (first document).
 Returns `Result ok: value` on success, `Result error:` if the file cannot
 be read or the YAML is invalid. Type error (non-String argument) still raises.
 """.
--spec 'parseFile:'(binary()) -> {ok, term()} | {error, term()}.
+-spec 'parseFile:'(binary()) -> beamtalk_result:t().
 'parseFile:'(Path) when is_binary(Path) ->
     case file:read_file(Path) of
         {ok, Content} ->
@@ -161,11 +161,11 @@ be read or the YAML is invalid. Type error (non-String argument) still raises.
 %%% ============================================================================
 
 -doc "FFI alias for parse:/1 — called via (Erlang beamtalk_yaml) parse: str.".
--spec parse(binary()) -> {ok, term()} | {error, term()}.
+-spec parse(binary()) -> beamtalk_result:t().
 parse(X) -> 'parse:'(X).
 
 -doc "FFI alias for parseAll:/1 — called via (Erlang beamtalk_yaml) parseAll: str.".
--spec parseAll(binary()) -> {ok, [term()]} | {error, term()}.
+-spec parseAll(binary()) -> beamtalk_result:t().
 parseAll(X) -> 'parseAll:'(X).
 
 -doc "FFI alias for generate:/1 — called via (Erlang beamtalk_yaml) generate: val.".
@@ -173,7 +173,7 @@ parseAll(X) -> 'parseAll:'(X).
 generate(X) -> 'generate:'(X).
 
 -doc "FFI alias for parseFile:/1 — called via (Erlang beamtalk_yaml) parseFile: str.".
--spec parseFile(binary()) -> {ok, term()} | {error, term()}.
+-spec parseFile(binary()) -> beamtalk_result:t().
 parseFile(X) -> 'parseFile:'(X).
 
 %%% ============================================================================
@@ -389,7 +389,7 @@ yaml_double_quote(B) when is_binary(B) ->
     Escaped = escape_yaml_string(B),
     <<$", Escaped/binary, $">>.
 
--doc """ 
+-doc """
 Escape special characters in a binary for YAML output.
 """.
 -spec escape_yaml_string(binary()) -> binary().

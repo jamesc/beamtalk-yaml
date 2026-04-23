@@ -9,6 +9,7 @@
 %%% type conversion, error paths, and round-trip correctness.
 
 -module(beamtalk_yaml_tests).
+-moduledoc "EUnit tests for beamtalk_yaml module (BT-1122).".
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("beamtalk_runtime/include/beamtalk.hrl").
