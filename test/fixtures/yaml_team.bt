@@ -1,0 +1,12 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Fixture: Value subclass whose `asYaml` result contains another
+// asYaml-implementing object (a YamlUser in the `lead` field). Exercises the
+// recursive conversion in Yaml generate:.
+
+Value subclass: YamlTeam
+  field: teamName = ""
+  field: lead = nil
+
+  asYaml => #{"team_name" => self.teamName, "lead" => self.lead}

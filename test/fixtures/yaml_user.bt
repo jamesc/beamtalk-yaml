@@ -1,0 +1,12 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Fixture: Value subclass implementing the `asYaml` hook.
+// `Yaml generate:` dispatches to `asYaml` for custom objects, letting the
+// class own its wire representation (here: snake_case keys).
+
+Value subclass: YamlUser
+  field: fullName = ""
+  field: age = 0
+
+  asYaml => #{"full_name" => self.fullName, "age" => self.age}

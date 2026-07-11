@@ -1,0 +1,10 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Fixture: Value subclass with no `asYaml` implementation. Used to verify
+// the legacy fallback (encode fields directly, tag stripped) and to verify
+// non-conformance to YamlRepresentable.
+
+Value subclass: YamlPoint
+  field: x = 0
+  field: y = 0

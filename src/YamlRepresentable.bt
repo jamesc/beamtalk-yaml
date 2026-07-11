@@ -1,0 +1,24 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+/// YamlRepresentable — Protocol for objects that control their own YAML encoding.
+///
+/// Any class that implements `asYaml` automatically conforms to
+/// YamlRepresentable via structural protocol conformance (ADR 0068).
+///
+/// `Yaml generate:` and `Yaml prettyPrint:` (see `Yaml`) dispatch to `asYaml`
+/// for any value that is not one of the natively YAML-representable types
+/// (Dictionary, List, String, Integer, Float, Boolean, nil). The returned
+/// value is converted recursively, so it may itself contain further
+/// YamlRepresentable objects, and is typically a Dictionary with explicit
+/// wire-format keys. Mirrors `JsonRepresentable`/`asJson`.
+///
+/// ## Examples
+/// ```beamtalk
+/// Value subclass: User
+///   field: fullName = ""
+///
+///   asYaml => #{"full_name" => self.fullName}
+/// (User conformsTo: #YamlRepresentable)   // => true
+/// ```
+Protocol define: YamlRepresentable
+  asYaml -> Object

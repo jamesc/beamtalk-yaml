@@ -1,0 +1,11 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Fixture: Actor implementing the `asYaml` hook. Exercises the non-map
+// dispatch path in Yaml generate: (actor refs reach the fallback clause of
+// prepare_for_encode, which sends asYaml via a sync call).
+
+Actor subclass: YamlStatusActor
+  state: hits = 0
+
+  asYaml => #{"hits" => self.hits}
