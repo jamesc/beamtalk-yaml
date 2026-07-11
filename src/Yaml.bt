@@ -19,16 +19,35 @@
 /// | true/false    | Boolean      |
 /// | null/~        | nil          |
 ///
+/// ## The `asYaml` Convention
+///
+/// Custom classes (typically `Value subclass:`) opt into `generate:` and
+/// `prettyPrint:` by implementing an `asYaml` instance method that returns
+/// a YAML-representable value — usually a Dictionary with explicit keys.
+/// The result is converted recursively, so it may itself contain objects
+/// that implement `asYaml`. This mirrors the `asJson`/`JsonRepresentable`
+/// convention: any class implementing `asYaml` conforms to
+/// `YamlRepresentable` via structural protocol conformance.
+///
+/// ```beamtalk
+/// Value subclass: User
+///   field: fullName = ""
+///
+///   asYaml => #{"full_name" => self.fullName}
+/// ```
+///
 /// ## Examples
 /// ```beamtalk
-/// (Yaml parse: "answer: 42") unwrap         // => _
-/// (Yaml parse: "- 1\n- 2\n- 3") unwrap     // => #(1, 2, 3)
+/// (Yaml parse: "answer: 42") unwrap         // => #{"answer" => 42}
+/// (Yaml parse: "[1, 2, 3]") unwrap          // => #(1, 2, 3)
 /// Yaml generate: #{"name" => "Ada"}
-/// // => _
+/// // => {"name": "Ada"}
+/// Yaml prettyPrint: #{"name" => "Ada"}
+/// // => "name": "Ada"
 /// (Yaml parseFile: "/etc/myapp.yaml") unwrap
-/// // => _
+/// // => _ (depends on file contents)
 /// ```
-sealed Object subclass: Yaml
+sealed typed Object subclass: Yaml native: beamtalk_yaml
 
   /// Parse a YAML string into a Beamtalk value (class method).
   ///
@@ -43,39 +62,54 @@ sealed Object subclass: Yaml
   /// ## Examples
   /// ```beamtalk
   /// (Yaml parse: "42") unwrap              // => 42
-  /// (Yaml parse: "- 1\n- 2\n- 3") unwrap  // => #(1, 2, 3)
+  /// (Yaml parse: "[1, 2, 3]") unwrap       // => #(1, 2, 3)
   /// (Yaml parse: "null") unwrap            // => nil
   /// ```
-  class sealed parse: yamlString :: String -> Result =>
-    Erlang beamtalk_yaml parse: yamlString
+  class sealed parse: yamlString :: String -> Result => self delegate
 
   /// Parse a multi-document YAML string into a List of values (class method).
   ///
   /// Returns a List containing one Beamtalk value per YAML document
   /// (documents are separated by ---).
   ///
+  /// Note: `\n` inside a `"..."` literal is NOT a newline escape in Beamtalk
+  /// (backslash is only special before `{`/`}`) — build a real newline with
+  /// `$\n asString` as shown below.
+  ///
   /// ## Examples
   /// ```beamtalk
-  /// (Yaml parseAll: "42\n---\n43") unwrap   // => _
+  /// nl := $\n asString
+  /// (Yaml parseAll: "42" ++ nl ++ "---" ++ nl ++ "43") unwrap   // => #(42, 43)
   /// ```
-  class sealed parseAll: yamlString :: String -> Result(List) =>
-    Erlang beamtalk_yaml parseAll: yamlString
+  class sealed parseAll: yamlString :: String -> Result(List) => self delegate
 
   /// Generate a YAML string from a Beamtalk value (class method).
   ///
   /// Produces valid YAML 1.2 in flow style. Dictionaries become YAML
   /// mappings, Lists become sequences, Strings become YAML strings,
   /// Integer/Float become numbers, true/false become YAML booleans,
-  /// nil becomes null.
+  /// nil becomes null. Custom objects that implement `asYaml` are
+  /// converted via that hook (see the class comment for the convention).
   ///
   /// ## Examples
   /// ```beamtalk
-  /// Yaml generate: #(1, 2, 3)              // => _
-  /// Yaml generate: nil                     // => _
-  /// Yaml generate: 42                      // => _
+  /// Yaml generate: #(1, 2, 3)              // => [1, 2, 3]
+  /// Yaml generate: nil                     // => null
+  /// Yaml generate: 42                      // => 42
   /// ```
-  class sealed generate: value :: Object -> String =>
-    Erlang beamtalk_yaml generate: value
+  class sealed generate: value :: Object -> String => self delegate
+
+  /// Generate a pretty-printed YAML string in block style (class method).
+  ///
+  /// Produces idiomatic indented YAML — `key: value` mappings and `- item`
+  /// sequences with two-space nesting — rather than `generate:`'s flow
+  /// style. Shares the same `asYaml` hook and type coercion as `generate:`.
+  ///
+  /// ## Examples
+  /// ```beamtalk
+  /// Yaml prettyPrint: #{"name" => "Ada", "age" => 36}
+  /// ```
+  class sealed prettyPrint: value :: Object -> String => self delegate
 
   /// Parse a YAML file into a Beamtalk value (class method).
   ///
@@ -84,7 +118,6 @@ sealed Object subclass: Yaml
   ///
   /// ## Examples
   /// ```beamtalk
-  /// (Yaml parseFile: "/etc/myapp.yaml") unwrap   // => _
+  /// (Yaml parseFile: "/etc/myapp.yaml") unwrap   // => _ (depends on file contents)
   /// ```
-  class sealed parseFile: path :: String -> Result =>
-    Erlang beamtalk_yaml parseFile: path
+  class sealed parseFile: path :: String -> Result => self delegate

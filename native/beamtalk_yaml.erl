@@ -24,6 +24,10 @@ construction for reliable type-safe parsing.
 | true/false    | Boolean      |
 | null/~        | nil          |
 
+Custom objects can opt into YAML generation by implementing an `asYaml`
+instance method returning a YAML-representable value (mirrors `asJson`,
+see beamtalk_json.erl / JsonRepresentable in the core stdlib).
+
 ## Methods
 
 | Selector        | Description                                        |
@@ -31,11 +35,12 @@ construction for reliable type-safe parsing.
 | `parse:`        | YAML string → Beamtalk value (first document)      |
 | `parseAll:`     | YAML string → List of all documents                |
 | `generate:`     | Beamtalk value → YAML string (flow style)          |
+| `prettyPrint:`  | Beamtalk value → YAML string (block style)         |
 | `parseFile:`    | Read file then parse first YAML document           |
 """.
 
--export(['parse:'/1, 'parseAll:'/1, 'generate:'/1, 'parseFile:'/1]).
--export([parse/1, parseAll/1, generate/1, parseFile/1]).
+-export(['parse:'/1, 'parseAll:'/1, 'generate:'/1, 'prettyPrint:'/1, 'parseFile:'/1]).
+-export([parse/1, parseAll/1, generate/1, prettyPrint/1, parseFile/1]).
 
 -include_lib("beamtalk_runtime/include/beamtalk.hrl").
 -include_lib("kernel/include/logger.hrl").
@@ -112,7 +117,8 @@ Generate a YAML string from a Beamtalk value (flow style).
 
 Produces valid YAML 1.2 in flow style. Dictionaries become YAML mappings,
 Lists become sequences, Strings become YAML strings, Integer/Float become
-numbers, true/false become YAML booleans, nil becomes null.
+numbers, true/false become YAML booleans, nil becomes null. Custom objects
+that implement `asYaml` are converted via that hook (see the module doc).
 """.
 -spec 'generate:'(term()) -> binary().
 'generate:'(Value) ->
@@ -125,6 +131,28 @@ numbers, true/false become YAML booleans, nil becomes null.
         _:Reason ->
             Error0 = beamtalk_error:new(type_error, 'Yaml'),
             Error1 = beamtalk_error:with_selector(Error0, 'generate:'),
+            Error2 = beamtalk_error:with_details(Error1, #{reason => Reason}),
+            Error3 = beamtalk_error:with_hint(Error2, <<"Value cannot be converted to YAML">>),
+            beamtalk_error:raise(Error3)
+    end.
+
+-doc """
+Generate a pretty-printed YAML string in block style (indented, no `{}`/`[]`).
+
+Shares the same `asYaml` hook and type coercion as `generate:` — only the
+container layout differs.
+""".
+-spec 'prettyPrint:'(term()) -> binary().
+'prettyPrint:'(Value) ->
+    try
+        Prepared = prepare_for_encode(Value),
+        generate_block(Prepared)
+    catch
+        error:#{error := #beamtalk_error{}} = E:_ ->
+            error(E);
+        _:Reason ->
+            Error0 = beamtalk_error:new(type_error, 'Yaml'),
+            Error1 = beamtalk_error:with_selector(Error0, 'prettyPrint:'),
             Error2 = beamtalk_error:with_details(Error1, #{reason => Reason}),
             Error3 = beamtalk_error:with_hint(Error2, <<"Value cannot be converted to YAML">>),
             beamtalk_error:raise(Error3)
@@ -171,6 +199,10 @@ parseAll(X) -> 'parseAll:'(X).
 -doc "FFI alias for generate:/1 — called via (Erlang beamtalk_yaml) generate: val.".
 -spec generate(term()) -> binary().
 generate(X) -> 'generate:'(X).
+
+-doc "FFI alias for prettyPrint:/1 — called via (Erlang beamtalk_yaml) prettyPrint: val.".
+-spec prettyPrint(term()) -> binary().
+prettyPrint(X) -> 'prettyPrint:'(X).
 
 -doc "FFI alias for parseFile:/1 — called via (Erlang beamtalk_yaml) parseFile: str.".
 -spec parseFile(binary()) -> beamtalk_result:t().
@@ -307,34 +339,119 @@ Prepare a Beamtalk value for YAML encoding.
 
 Beamtalk uses `nil` for null; YAML generator expects `null`.
 Maps with `$beamtalk_class` tags are stripped of metadata.
+
+Custom objects (Value instances, actors, ...) that implement `asYaml`
+are converted via that hook (mirrors `asJson`, BT-2818): the hook's return
+value is prepared recursively, so it may itself contain further `asYaml`
+objects. Tagged maps whose class does not implement `asYaml` keep the
+legacy behaviour of encoding their user fields directly as a YAML mapping.
 """.
 -spec prepare_for_encode(term()) -> term().
-prepare_for_encode(nil) ->
+prepare_for_encode(Value) ->
+    prepare_for_encode(Value, []).
+
+-doc """
+Same as `prepare_for_encode/1`, threading `Seen` — the receivers whose
+`asYaml` hook is currently being resolved higher up this call chain.
+
+Only actors can produce a cycle (Value instances are immutable, so a
+Beamtalk value can never contain itself): actor A's `asYaml` embedding
+actor B, whose `asYaml` embeds A back, would otherwise recurse until the
+process runs out of stack. `Seen` is extended only at the point a hook is
+about to be invoked (`try_as_yaml_hook/2`), so plain Dictionary/List
+recursion is unaffected.
+""".
+-spec prepare_for_encode(term(), [term()]) -> term().
+prepare_for_encode(nil, _Seen) ->
     null;
-prepare_for_encode(Map) when is_map(Map) ->
-    %% Strip $beamtalk_class tag if present (e.g., from Dictionary)
-    Cleaned = maps:remove('$beamtalk_class', Map),
-    maps:map(fun(_K, V) -> prepare_for_encode(V) end, Cleaned);
-prepare_for_encode(List) when is_list(List) ->
-    lists:map(fun prepare_for_encode/1, List);
-prepare_for_encode(true) ->
+prepare_for_encode(Map, Seen) when is_map(Map) ->
+    case beamtalk_tagged_map:class_of(Map) of
+        undefined ->
+            encode_map_fields(Map, Seen);
+        'Dictionary' ->
+            encode_map_fields(Map, Seen);
+        _Class ->
+            case try_as_yaml_hook(Map, Seen) of
+                {ok, Prepared} -> Prepared;
+                no_hook -> encode_map_fields(Map, Seen)
+            end
+    end;
+prepare_for_encode(List, Seen) when is_list(List) ->
+    [prepare_for_encode(E, Seen) || E <- List];
+prepare_for_encode(true, _Seen) ->
     true;
-prepare_for_encode(false) ->
+prepare_for_encode(false, _Seen) ->
     false;
-prepare_for_encode(V) when is_integer(V) -> V;
-prepare_for_encode(V) when is_float(V) -> V;
-prepare_for_encode(V) when is_binary(V) -> V;
-prepare_for_encode(V) when is_atom(V) ->
+prepare_for_encode(V, _Seen) when is_integer(V) -> V;
+prepare_for_encode(V, _Seen) when is_float(V) -> V;
+prepare_for_encode(V, _Seen) when is_binary(V) -> V;
+prepare_for_encode(V, _Seen) when is_atom(V) ->
     %% Convert atoms (symbols) to strings for YAML compatibility
     atom_to_binary(V, utf8);
-prepare_for_encode(Other) ->
-    Error0 = beamtalk_error:new(type_error, 'Yaml'),
-    Error1 = beamtalk_error:with_details(Error0, #{value => Other}),
-    Error2 = beamtalk_error:with_hint(
-        Error1,
-        <<"Only Dictionary, List, String, Integer, Float, Boolean, and nil can be converted to YAML">>
-    ),
-    beamtalk_error:raise(Error2).
+prepare_for_encode(Other, Seen) ->
+    case try_as_yaml_hook(Other, Seen) of
+        {ok, Prepared} ->
+            Prepared;
+        no_hook ->
+            %% No selector — callers add the correct one via their catch blocks
+            Error0 = beamtalk_error:new(type_error, 'Yaml'),
+            Error1 = beamtalk_error:with_details(Error0, #{value => Other}),
+            Error2 = beamtalk_error:with_hint(
+                Error1,
+                <<
+                    "Only Dictionary, List, String, Integer, Float, Boolean, and nil "
+                    "convert to YAML natively; implement asYaml to give this class "
+                    "a YAML representation"
+                >>
+            ),
+            beamtalk_error:raise(Error2)
+    end.
+
+-doc """
+Encode a map's entries as a YAML mapping, stripping the `$beamtalk_class` tag.
+""".
+-spec encode_map_fields(map(), [term()]) -> map().
+encode_map_fields(Map, Seen) ->
+    Cleaned = maps:remove('$beamtalk_class', Map),
+    maps:map(fun(_K, V) -> prepare_for_encode(V, Seen) end, Cleaned).
+
+-doc """
+Dispatch the `asYaml` conversion hook on a custom object (mirrors `asJson`).
+
+Returns `{ok, Prepared}` when the object understands `asYaml`, `no_hook`
+otherwise. Uses `beamtalk_message_dispatch` (the unified send entry point)
+so the check and the call behave exactly like Beamtalk-level
+`value respondsTo: #asYaml` / `value asYaml` for every receiver shape —
+value-type tagged maps and live actors alike.
+
+A receiver already in `Seen` — either because its hook returned itself
+directly, or because it reappears deeper inside its own YAML output via
+one or more intermediate objects — raises a type error instead of
+recursing forever.
+""".
+-spec try_as_yaml_hook(term(), [term()]) -> {ok, term()} | no_hook.
+try_as_yaml_hook(Value, Seen) ->
+    case lists:member(Value, Seen) of
+        true ->
+            Error0 = beamtalk_error:new(type_error, 'Yaml'),
+            Error1 = beamtalk_error:with_details(Error0, #{value => Value}),
+            Error2 = beamtalk_error:with_hint(
+                Error1,
+                <<
+                    "asYaml produced a cycle: this object reappeared inside "
+                    "its own YAML output"
+                >>
+            ),
+            beamtalk_error:raise(Error2);
+        false ->
+            case beamtalk_message_dispatch:send(Value, 'respondsTo:', ['asYaml']) of
+                true ->
+                    Yaml = beamtalk_message_dispatch:send(Value, 'asYaml', []),
+                    {ok, prepare_for_encode(Yaml, [Value | Seen])};
+                _ ->
+                    no_hook
+            end
+    end.
 
 -doc """
 Generate YAML in flow style from a prepared Erlang term.
@@ -364,6 +481,67 @@ generate_flow([]) ->
 generate_flow(List) when is_list(List) ->
     Items = [generate_flow(Item) || Item <- List],
     <<"[", (iolist_to_binary(lists:join(<<", ">>, Items)))/binary, "]">>.
+
+-doc """
+Generate YAML in block style from a prepared Erlang term (used by `prettyPrint:`).
+
+Block style is idiomatic, indented YAML: mappings are `key: value` lines
+and sequences are `- item` lines, nested by two-space indentation, with no
+`{}`/`[]` delimiters. Empty containers and scalars still render inline via
+`generate_flow/1` — block style has no natural representation for them.
+
+A non-empty container nested as a list item has its first line folded onto
+the `- ` marker (e.g. `- name: Ada` rather than a separate line per YAML
+convention), matching how most YAML tools render lists of mappings.
+""".
+-spec generate_block(term()) -> binary().
+generate_block(Value) ->
+    case block_shape(Value) of
+        {scalar, Bin} -> Bin;
+        container -> iolist_to_binary(lists:join(<<"\n">>, block_lines(Value, 0)))
+    end.
+
+%% Distinguish scalars (and empty containers, rendered inline via
+%% generate_flow/1) from non-empty containers (rendered as a multi-line block).
+-spec block_shape(term()) -> {scalar, binary()} | container.
+block_shape(Map) when is_map(Map), map_size(Map) =:= 0 -> {scalar, <<"{}">>};
+block_shape(List) when is_list(List), List =:= [] -> {scalar, <<"[]">>};
+block_shape(Map) when is_map(Map) -> container;
+block_shape(List) when is_list(List) -> container;
+block_shape(Other) -> {scalar, generate_flow(Other)}.
+
+-spec block_lines(term(), non_neg_integer()) -> [binary()].
+block_lines(Map, Depth) when is_map(Map) ->
+    lists:flatmap(fun({K, V}) -> map_entry_lines(K, V, Depth) end, maps:to_list(Map));
+block_lines(List, Depth) when is_list(List) ->
+    lists:flatmap(fun(Item) -> list_item_lines(Item, Depth) end, List).
+
+-spec map_entry_lines(term(), term(), non_neg_integer()) -> [binary()].
+map_entry_lines(K, V, Depth) ->
+    KeyBin = render_key(K),
+    case block_shape(V) of
+        {scalar, Bin} ->
+            [<<(block_indent(Depth))/binary, KeyBin/binary, ": ", Bin/binary>>];
+        container ->
+            [<<(block_indent(Depth))/binary, KeyBin/binary, ":">> | block_lines(V, Depth + 1)]
+    end.
+
+-spec list_item_lines(term(), non_neg_integer()) -> [binary()].
+list_item_lines(Item, Depth) ->
+    case block_shape(Item) of
+        {scalar, Bin} ->
+            [<<(block_indent(Depth))/binary, "- ", Bin/binary>>];
+        container ->
+            [SubFirst | SubRest] = block_lines(Item, Depth + 1),
+            ChildIndentSize = byte_size(block_indent(Depth + 1)),
+            <<_:ChildIndentSize/binary, Trimmed/binary>> = SubFirst,
+            First = <<(block_indent(Depth))/binary, "- ", Trimmed/binary>>,
+            [First | SubRest]
+    end.
+
+-spec block_indent(non_neg_integer()) -> binary().
+block_indent(0) -> <<>>;
+block_indent(N) -> binary:copy(<<"  ">>, N).
 
 -doc """
 Render a map key for YAML flow output.

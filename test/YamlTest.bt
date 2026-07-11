@@ -111,6 +111,84 @@ TestCase subclass: YamlTest
     // Round-trip empty dict
     self assert: (Yaml parse: (Yaml generate: #{})) unwrap size equals: 0
 
+  testPrettyPrinting =>
+    // Pretty print produces a non-empty string
+    self assert: ((Yaml prettyPrint: #{"a" => 1}) size > 0)
+    // Pretty print produces same data as generate when re-parsed
+    self assert: ((Yaml parse: (Yaml prettyPrint: #{
+      "a" => 1
+    })) unwrap at: "a") equals: 1
+    // Pretty print is block style: a bare `key: value` line, not a flow-style
+    // `{...}` mapping
+    self assert: (Yaml prettyPrint: #{"a" => 1}) equals: """a"": 1"
+    // Nested structures round-trip through prettyPrint: too
+    self
+      assert: (((Yaml parse: (Yaml prettyPrint: #{
+        "items" => #(1, 2, 3),
+        "user" => #{"age" => 36}
+      })) unwrap at: "user") at: "age")
+      equals: 36
+    // A list of mappings round-trips (exercises the dash-folding logic)
+    self
+      assert: (((Yaml parse: (Yaml prettyPrint: #(#{
+        "x" => 1
+      }, #{"x" => 2}))) unwrap at: 2) at: "x")
+      equals: 2
+    // A list of lists round-trips too (dash-folding onto a nested "- ", not a key)
+    self assert: (Yaml parse: (Yaml prettyPrint: #(#(1, 2), #(3, 4)))) unwrap equals: #(#(1, 2), #(3, 4))
+    // Scalars and empty containers still render inline
+    self assert: (Yaml prettyPrint: 42) equals: "42"
+    self assert: (Yaml prettyPrint: #()) equals: "[]"
+    self assert: (Yaml prettyPrint: #{}) equals: "\{}"
+
+  // =========================================================================
+  // asYaml HOOK
+  // Fixtures: yaml_user.bt (YamlUser), yaml_team.bt (YamlTeam),
+  //           yaml_point.bt (YamlPoint), yaml_status_actor.bt (YamlStatusActor)
+  // =========================================================================
+  testGenerateDispatchesAsYaml =>
+    // A Value class implementing asYaml controls its own YAML shape
+    u := YamlUser fullName: "Ada Lovelace" age: 36
+    parsed := (Yaml parse: (Yaml generate: u)) unwrap
+    self assert: (parsed at: "full_name") equals: "Ada Lovelace"
+    self assert: (parsed at: "age") equals: 36
+
+  testGenerateAsYamlInsideCollections =>
+    // asYaml objects nested in Lists and Dictionaries convert recursively
+    u := YamlUser fullName: "Ada" age: 36
+    fromList := (Yaml parse: (Yaml generate: #(u))) unwrap
+    self assert: ((fromList at: 1) at: "full_name") equals: "Ada"
+    fromDict := (Yaml parse: (Yaml generate: #{"author" => u})) unwrap
+    self assert: ((fromDict at: "author") at: "age") equals: 36
+
+  testGenerateAsYamlRecursesIntoResult =>
+    // An asYaml result containing another asYaml object converts recursively
+    team := YamlTeam teamName: "Analytical Engines" lead: (YamlUser fullName: "Ada" age: 36)
+    parsed := (Yaml parse: (Yaml generate: team)) unwrap
+    self assert: (parsed at: "team_name") equals: "Analytical Engines"
+    self assert: ((parsed at: "lead") at: "full_name") equals: "Ada"
+
+  testGenerateDispatchesAsYamlOnActor =>
+    // Actors implementing asYaml serialize via a sync send
+    a := YamlStatusActor spawn
+    parsed := (Yaml parse: (Yaml generate: a)) unwrap
+    self assert: (parsed at: "hits") equals: 0
+    a stop
+
+  testPrettyPrintDispatchesAsYaml =>
+    // prettyPrint: shares the asYaml hook with generate:
+    u := YamlUser fullName: "Ada" age: 36
+    parsed := (Yaml parse: (Yaml prettyPrint: u)) unwrap
+    self assert: (parsed at: "full_name") equals: "Ada"
+
+  testGenerateValueWithoutAsYamlKeepsFieldEncoding =>
+    // Legacy behaviour: a Value class with no asYaml still encodes its
+    // fields directly as a YAML mapping (tag stripped)
+    p := YamlPoint x: 3 y: 4
+    parsed := (Yaml parse: (Yaml generate: p)) unwrap
+    self assert: (parsed at: "x") equals: 3
+    self assert: (parsed at: "y") equals: 4
+
   testErrorHandling =>
     // Parse invalid YAML returns a Result error with parse_error kind
     result := Yaml parse: "key: [unclosed"

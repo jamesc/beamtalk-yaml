@@ -1,0 +1,32 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// YamlRepresentable protocol conformance tests.
+// Verifies that the protocol is registered and that classes implementing
+// asYaml conform structurally (ADR 0068).
+//
+// Fixtures: test/fixtures/yaml_user.bt (YamlUser — implements asYaml)
+//           test/fixtures/yaml_point.bt (YamlPoint — no asYaml)
+
+TestCase subclass: YamlRepresentableProtocolTest
+
+  testYamlRepresentableIsRegistered =>
+    self assert: (Protocol isProtocol: #YamlRepresentable)
+
+  testRequiredMethods =>
+    methods := Protocol requiredMethods: #YamlRepresentable
+    self assert: methods size equals: 1
+    self assert: (methods includes: #asYaml)
+
+  testAllProtocolsIncludesYamlRepresentable =>
+    self assert: (Protocol allProtocols includes: #YamlRepresentable)
+
+  // --- Conforming class (implements asYaml) ---
+  testYamlUserConforms => self assert: (YamlUser conformsTo: #YamlRepresentable)
+
+  testYamlUserProtocolsIncludesYamlRepresentable =>
+    self assert: (YamlUser protocols includes: #YamlRepresentable)
+
+  // --- Non-conforming class (no asYaml) ---
+  testYamlPointDoesNotConform =>
+    self deny: (YamlPoint conformsTo: #YamlRepresentable)
