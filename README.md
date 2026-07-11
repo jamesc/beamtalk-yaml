@@ -25,22 +25,26 @@ beamtalk build
 
 ```beamtalk
 (Yaml parse: "answer: 42") unwrap           // => #{"answer" => 42}
-(Yaml parse: "- 1\n- 2\n- 3") unwrap       // => #(1, 2, 3)
+(Yaml parse: "[1, 2, 3]") unwrap            // => #(1, 2, 3)
 (Yaml parse: "null") unwrap                 // => nil
 ```
 
 ### Multi-document parsing
 
+`\n` inside a `"..."` literal is not a newline escape in Beamtalk — build a
+real newline with `$\n asString` (see below) to separate documents with `---`.
+
 ```beamtalk
-(Yaml parseAll: "42\n---\n43") unwrap       // => #(42, 43)
+nl := $\n asString
+(Yaml parseAll: "42" ++ nl ++ "---" ++ nl ++ "43") unwrap   // => #(42, 43)
 ```
 
 ### Generation
 
 ```beamtalk
-Yaml generate: #{"name" => "Ada"}           // => "{\"name\": \"Ada\"}"
-Yaml generate: #(1, 2, 3)                   // => "[1, 2, 3]"
-Yaml generate: nil                          // => "null"
+Yaml generate: #{"name" => "Ada"}           // => {"name": "Ada"}
+Yaml generate: #(1, 2, 3)                   // => [1, 2, 3]
+Yaml generate: nil                          // => null
 ```
 
 ### File parsing

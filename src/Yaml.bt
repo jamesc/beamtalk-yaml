@@ -39,7 +39,7 @@
 /// ## Examples
 /// ```beamtalk
 /// (Yaml parse: "answer: 42") unwrap         // => #{"answer" => 42}
-/// (Yaml parse: "- 1\n- 2\n- 3") unwrap     // => #(1, 2, 3)
+/// (Yaml parse: "[1, 2, 3]") unwrap          // => #(1, 2, 3)
 /// Yaml generate: #{"name" => "Ada"}
 /// // => {"name": "Ada"}
 /// Yaml prettyPrint: #{"name" => "Ada"}
@@ -62,7 +62,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// ## Examples
   /// ```beamtalk
   /// (Yaml parse: "42") unwrap              // => 42
-  /// (Yaml parse: "- 1\n- 2\n- 3") unwrap  // => #(1, 2, 3)
+  /// (Yaml parse: "[1, 2, 3]") unwrap       // => #(1, 2, 3)
   /// (Yaml parse: "null") unwrap            // => nil
   /// ```
   class sealed parse: yamlString :: String -> Result => self delegate
@@ -72,9 +72,14 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// Returns a List containing one Beamtalk value per YAML document
   /// (documents are separated by ---).
   ///
+  /// Note: `\n` inside a `"..."` literal is NOT a newline escape in Beamtalk
+  /// (backslash is only special before `{`/`}`) — build a real newline with
+  /// `$\n asString` as shown below.
+  ///
   /// ## Examples
   /// ```beamtalk
-  /// (Yaml parseAll: "42\n---\n43") unwrap   // => #(42, 43)
+  /// nl := $\n asString
+  /// (Yaml parseAll: "42" ++ nl ++ "---" ++ nl ++ "43") unwrap   // => #(42, 43)
   /// ```
   class sealed parseAll: yamlString :: String -> Result(List) => self delegate
 
