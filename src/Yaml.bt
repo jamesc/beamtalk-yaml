@@ -65,7 +65,8 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// (Yaml parse: "[1, 2, 3]") unwrap       // => #(1, 2, 3)
   /// (Yaml parse: "null") unwrap            // => nil
   /// ```
-  class sealed parse: yamlString :: String -> Result(Dynamic, Error) => self delegate
+  class sealed parse: yamlString :: String -> Result(Dynamic, Error) =>
+    self delegate
 
   /// Parse a multi-document YAML string into a List of values (class method).
   ///
@@ -81,7 +82,8 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// nl := $\n asString
   /// (Yaml parseAll: "42" ++ nl ++ "---" ++ nl ++ "43") unwrap   // => #(42, 43)
   /// ```
-  class sealed parseAll: yamlString :: String -> Result(List, Error) => self delegate
+  class sealed parseAll: yamlString :: String -> Result(List, Error) =>
+    self delegate
 
   /// Generate a YAML string from a Beamtalk value (class method).
   ///
@@ -120,4 +122,5 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// ```beamtalk
   /// (Yaml parseFile: "/etc/myapp.yaml") unwrap   // => _ (depends on file contents)
   /// ```
-  class sealed parseFile: path :: String -> Result(Dynamic, Error) => self delegate
+  class sealed parseFile: path :: String -> Result(Dynamic, Error) =>
+    self delegate
