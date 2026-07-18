@@ -1,6 +1,12 @@
 // Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
-
+/// A parsed or parseable YAML value.
+///
+/// YAML mappings become Dictionary, sequences become List, strings become
+/// String, integers become Integer, floats become Float, booleans stay
+/// true/false, and null/~ becomes nil — see `Yaml`'s class comment for the
+/// full mapping.
+type YamlValue = Nil | Boolean | Integer | Float | String | List | Dictionary
 /// Yaml — YAML parsing and generation.
 ///
 /// Provides class methods for parsing YAML strings into Beamtalk values
@@ -65,7 +71,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// (Yaml parse: "[1, 2, 3]") unwrap       // => #(1, 2, 3)
   /// (Yaml parse: "null") unwrap            // => nil
   /// ```
-  class sealed parse: yamlString :: String -> Result(Dynamic, Error) =>
+  class sealed parse: yamlString :: String -> Result(YamlValue, Error) =>
     self delegate
 
   /// Parse a multi-document YAML string into a List of values (class method).
@@ -82,7 +88,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// nl := $\n asString
   /// (Yaml parseAll: "42" ++ nl ++ "---" ++ nl ++ "43") unwrap   // => #(42, 43)
   /// ```
-  class sealed parseAll: yamlString :: String -> Result(List, Error) =>
+  class sealed parseAll: yamlString :: String -> Result(List(YamlValue), Error) =>
     self delegate
 
   /// Generate a YAML string from a Beamtalk value (class method).
@@ -122,5 +128,5 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// ```beamtalk
   /// (Yaml parseFile: "/etc/myapp.yaml") unwrap   // => _ (depends on file contents)
   /// ```
-  class sealed parseFile: path :: String -> Result(Dynamic, Error) =>
+  class sealed parseFile: path :: String -> Result(YamlValue, Error) =>
     self delegate
