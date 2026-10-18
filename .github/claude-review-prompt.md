@@ -164,7 +164,7 @@ root:
    Write `[]` when there are none. Each element:
 
    {
-     "path": "src/Yaml.bt",
+     "path": "src/yaml.bt",
      "line": 123,
      "start_line": 120,
      "side": "RIGHT",
