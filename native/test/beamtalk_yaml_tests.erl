@@ -386,6 +386,57 @@ parse_file_alias_type_error_test() ->
     ).
 
 %%% ============================================================================
+%%% BT-4171 — string leaves answer String (validated at the boundary)
+%%% ============================================================================
+
+string_leaf_answers_string_test() ->
+    application:ensure_all_started(yamerl),
+    Leaf = unwrap_ok(beamtalk_yaml:'parse:'(<<"hello">>)),
+    ?assertEqual(<<"hello">>, Leaf),
+    ?assertEqual('String', beamtalk_primitive:class_of(Leaf)).
+
+unicode_leaf_answers_string_test() ->
+    application:ensure_all_started(yamerl),
+    Leaf = unwrap_ok(beamtalk_yaml:'parse:'(<<"héllo"/utf8>>)),
+    ?assertEqual(<<"héllo"/utf8>>, Leaf),
+    ?assertEqual('String', beamtalk_primitive:class_of(Leaf)).
+
+sequence_items_answer_string_test() ->
+    application:ensure_all_started(yamerl),
+    Items = unwrap_ok(beamtalk_yaml:'parse:'(<<"[a, b]">>)),
+    ?assertEqual([<<"a">>, <<"b">>], Items),
+    lists:foreach(
+        fun(I) -> ?assertEqual('String', beamtalk_primitive:class_of(I)) end,
+        Items
+    ).
+
+mapping_keys_and_values_answer_string_test() ->
+    application:ensure_all_started(yamerl),
+    Map = unwrap_ok(beamtalk_yaml:'parse:'(<<"{\"name\": \"Ada\"}">>)),
+    ?assertEqual(<<"Ada">>, maps:get(<<"name">>, Map)),
+    ?assertEqual('String', beamtalk_primitive:class_of(maps:get(<<"name">>, Map))),
+    lists:foreach(
+        fun(K) -> ?assertEqual('String', beamtalk_primitive:class_of(K)) end,
+        maps:keys(Map)
+    ).
+
+integer_keys_keep_class_test() ->
+    application:ensure_all_started(yamerl),
+    %% Yaml keys follow the scalar type: only string scalars become Strings.
+    Map = unwrap_ok(beamtalk_yaml:'parse:'(<<"{1: \"one\"}">>)),
+    ?assertEqual('Integer', beamtalk_primitive:class_of(hd(maps:keys(Map)))),
+    ?assertEqual('String', beamtalk_primitive:class_of(maps:get(1, Map))).
+
+parse_all_leaves_answer_string_test() ->
+    application:ensure_all_started(yamerl),
+    Docs = unwrap_ok(beamtalk_yaml:'parseAll:'(<<"a\n---\nb">>)),
+    ?assertEqual([<<"a">>, <<"b">>], Docs),
+    lists:foreach(
+        fun(D) -> ?assertEqual('String', beamtalk_primitive:class_of(D)) end,
+        Docs
+    ).
+
+%%% ============================================================================
 %%% Helpers
 %%% ============================================================================
 
