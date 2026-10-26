@@ -293,11 +293,11 @@ This converter handles all standard YAML types. Unsupported node types
 The Selector parameter is used for error attribution (parse: vs parseAll:).
 """.
 -spec convert_node(term(), atom()) -> term().
-convert_node({yamerl_str, _, _, _, Charlist}, _Selector) ->
+convert_node({yamerl_str, _, _, _, Charlist}, Selector) ->
     %% Strings are returned as charlists in yamerl detailed mode.
     %% Use unicode:characters_to_binary/1 (not list_to_binary/1) to safely
     %% handle codepoints > 255, which list_to_binary/1 would crash on.
-    unicode:characters_to_binary(Charlist);
+    string_node(Charlist, Selector);
 convert_node({yamerl_int, _, _, _, Value}, _Selector) ->
     Value;
 convert_node({yamerl_float, _, _, _, Value}, _Selector) ->
@@ -329,6 +329,65 @@ convert_node(Other, Selector) ->
         <<"YAML anchors/aliases and custom tags are not supported">>
     ),
     beamtalk_error:raise(Error3).
+
+-doc """
+Construct a validated String from a yamerl string scalar (BT-4171).
+
+This is Yaml's native text boundary: string leaves and mapping keys are
+constructed as validated Strings rather than binaries that merely sniff
+as text.
+
+Conversion can fail two ways, both answered as a `Yaml` `parse_error`
+naming `Selector` (which `parse:/1` / `parseAll:/1` report as `Result
+error:`):
+
+- `unicode:characters_to_binary/1` answers `{error, _, _}` /
+  `{incomplete, _, _}` for unrepresentable code points — previously that
+  tuple leaked into the parsed result as a non-String value;
+- the converted binary is checked with
+  `beamtalk_primitive:is_utf8/1` (the same check as
+  `beamtalk_binary:check_utf8/1`, already released — reused here rather
+  than duplicating validation logic) and rejected when it is not valid
+  UTF-8.
+
+yamerl pre-validates its input and throws before a malformed scalar can
+reach this function, so the failure arms are defense-in-depth and the
+explicit seam the BT-4170 dispatch flip will build on. Hints carry no
+values, matching this module's policy of never logging scalar content.
+""".
+-spec string_node(term(), atom()) -> binary().
+string_node(Charlist, Selector) when is_list(Charlist) ->
+    case unicode:characters_to_binary(Charlist) of
+        Bin when is_binary(Bin) ->
+            case beamtalk_primitive:is_utf8(Bin) of
+                true ->
+                    Bin;
+                false ->
+                    raise_string_error(
+                        Selector, <<"YAML string is not valid UTF-8">>
+                    )
+            end;
+        {error, _, _} ->
+            raise_string_error(
+                Selector, <<"YAML string contains code points that cannot be encoded as UTF-8">>
+            );
+        {incomplete, _, _} ->
+            raise_string_error(
+                Selector, <<"YAML string ends in the middle of a character">>
+            )
+    end;
+string_node(_NotList, Selector) ->
+    raise_string_error(
+        Selector, <<"YAML string node does not contain a character list">>
+    ).
+
+-doc "Raise a `Yaml` `parse_error` for a malformed string scalar.".
+-spec raise_string_error(atom(), binary()) -> no_return().
+raise_string_error(Selector, Hint) ->
+    Error0 = beamtalk_error:new(parse_error, 'Yaml'),
+    Error1 = beamtalk_error:with_selector(Error0, Selector),
+    Error2 = beamtalk_error:with_hint(Error1, Hint),
+    beamtalk_error:raise(Error2).
 
 %%% ============================================================================
 %%% Internal Functions — Generation

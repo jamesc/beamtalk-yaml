@@ -75,6 +75,20 @@ TestCase subclass: YamlTest
     // parseAll: with a sequence returns a list containing the sequence
     self assert: ((Yaml parseAll: "[1, 2, 3]") unwrap at: 1) equals: #(1, 2, 3)
 
+  testParsedStringsAnswerString =>
+    // BT-4171: the native text boundary constructs validated Strings —
+    // leaves and keys answer String, not Binary.
+    leaf := (Yaml parse: "hello") unwrap
+    self assert: leaf class equals: String
+    self assert: leaf equals: "hello"
+    items :: List := (Yaml parse: "[a, b]") unwrap
+    self assert: (items at: 1) class equals: String
+    named :: Dictionary := (Yaml parse: (Yaml generate: #{
+      "name" => "Ada"
+    })) unwrap
+    self assert: (named at: "name") class equals: String
+    self assert: (named keys at: 1) class equals: String
+
   testGeneratingScalarValues =>
     // Generate YAML from an Integer
     self assert: (Yaml generate: 42) equals: "42"
