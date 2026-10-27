@@ -60,7 +60,10 @@ floats become Floats, true/false become booleans, null/~ become nil.
 Returns `Result ok: value` on success, `Result error:` on invalid YAML.
 Type error (non-String argument) still raises.
 """.
--spec 'parse:'(binary()) -> beamtalk_result:t().
+-spec 'parse:'(binary() | beamtalk_string:t()) -> beamtalk_result:t().
+'parse:'({beamtalk_string, YamlStr}) when is_binary(YamlStr) ->
+    %% BT-4173: a String arrives tagged — unwrap to bytes for yamerl.
+    'parse:'(YamlStr);
 'parse:'(YamlStr) when is_binary(YamlStr) ->
     case parse_yaml_string(YamlStr, 'parse:') of
         {error, _} = Err ->
@@ -91,7 +94,10 @@ Returns `Result ok: list` where list contains one value per YAML document
 (separated by ---). Returns `Result error:` on invalid YAML.
 Type error (non-String argument) still raises.
 """.
--spec 'parseAll:'(binary()) -> beamtalk_result:t().
+-spec 'parseAll:'(binary() | beamtalk_string:t()) -> beamtalk_result:t().
+'parseAll:'({beamtalk_string, YamlStr}) when is_binary(YamlStr) ->
+    %% BT-4173: a String arrives tagged — unwrap to bytes for yamerl.
+    'parseAll:'(YamlStr);
 'parseAll:'(YamlStr) when is_binary(YamlStr) ->
     case parse_yaml_string(YamlStr, 'parseAll:') of
         {error, _} = Err ->
@@ -120,11 +126,12 @@ Lists become sequences, Strings become YAML strings, Integer/Float become
 numbers, true/false become YAML booleans, nil becomes null. Custom objects
 that implement `asYaml` are converted via that hook (see the module doc).
 """.
--spec 'generate:'(term()) -> binary().
+-spec 'generate:'(term()) -> beamtalk_string:t().
 'generate:'(Value) ->
     try
         Prepared = prepare_for_encode(Value),
-        generate_flow(Prepared)
+        %% BT-4173: generated YAML text answers a String.
+        beamtalk_primitive:string_from_binary(generate_flow(Prepared))
     catch
         error:#{error := #beamtalk_error{}} = E:_ ->
             error(E);
@@ -142,11 +149,12 @@ Generate a pretty-printed YAML string in block style (indented, no `{}`/`[]`).
 Shares the same `asYaml` hook and type coercion as `generate:` — only the
 container layout differs.
 """.
--spec 'prettyPrint:'(term()) -> binary().
+-spec 'prettyPrint:'(term()) -> beamtalk_string:t().
 'prettyPrint:'(Value) ->
     try
         Prepared = prepare_for_encode(Value),
-        generate_block(Prepared)
+        %% BT-4173: generated YAML text answers a String.
+        beamtalk_primitive:string_from_binary(generate_block(Prepared))
     catch
         error:#{error := #beamtalk_error{}} = E:_ ->
             error(E);
@@ -164,7 +172,10 @@ Read a file and parse it as YAML (first document).
 Returns `Result ok: value` on success, `Result error:` if the file cannot
 be read or the YAML is invalid. Type error (non-String argument) still raises.
 """.
--spec 'parseFile:'(binary()) -> beamtalk_result:t().
+-spec 'parseFile:'(binary() | beamtalk_string:t()) -> beamtalk_result:t().
+'parseFile:'({beamtalk_string, Path}) when is_binary(Path) ->
+    %% BT-4173: a String path arrives tagged — unwrap for file:read_file.
+    'parseFile:'(Path);
 'parseFile:'(Path) when is_binary(Path) ->
     case file:read_file(Path) of
         {ok, Content} ->
@@ -189,23 +200,23 @@ be read or the YAML is invalid. Type error (non-String argument) still raises.
 %%% ============================================================================
 
 -doc "FFI alias for parse:/1 — called via (Erlang beamtalk_yaml) parse: str.".
--spec parse(binary()) -> beamtalk_result:t().
+-spec parse(binary() | beamtalk_string:t()) -> beamtalk_result:t().
 parse(X) -> 'parse:'(X).
 
 -doc "FFI alias for parseAll:/1 — called via (Erlang beamtalk_yaml) parseAll: str.".
--spec parseAll(binary()) -> beamtalk_result:t().
+-spec parseAll(binary() | beamtalk_string:t()) -> beamtalk_result:t().
 parseAll(X) -> 'parseAll:'(X).
 
 -doc "FFI alias for generate:/1 — called via (Erlang beamtalk_yaml) generate: val.".
--spec generate(term()) -> binary().
+-spec generate(term()) -> beamtalk_string:t().
 generate(X) -> 'generate:'(X).
 
 -doc "FFI alias for prettyPrint:/1 — called via (Erlang beamtalk_yaml) prettyPrint: val.".
--spec prettyPrint(term()) -> binary().
+-spec prettyPrint(term()) -> beamtalk_string:t().
 prettyPrint(X) -> 'prettyPrint:'(X).
 
 -doc "FFI alias for parseFile:/1 — called via (Erlang beamtalk_yaml) parseFile: str.".
--spec parseFile(binary()) -> beamtalk_result:t().
+-spec parseFile(binary() | beamtalk_string:t()) -> beamtalk_result:t().
 parseFile(X) -> 'parseFile:'(X).
 
 %%% ============================================================================
@@ -355,13 +366,15 @@ reach this function, so the failure arms are defense-in-depth and the
 explicit seam the BT-4170 dispatch flip will build on. Hints carry no
 values, matching this module's policy of never logging scalar content.
 """.
--spec string_node(term(), atom()) -> binary().
+-spec string_node(term(), atom()) -> beamtalk_string:t().
 string_node(Charlist, Selector) when is_list(Charlist) ->
     case unicode:characters_to_binary(Charlist) of
         Bin when is_binary(Bin) ->
             case beamtalk_primitive:is_utf8(Bin) of
                 true ->
-                    Bin;
+                    %% BT-4173: the flip seam — validated text answers
+                    %% a tagged String so class_of/1 answers String.
+                    beamtalk_primitive:string_from_binary(Bin);
                 false ->
                     raise_string_error(
                         Selector, <<"YAML string is not valid UTF-8">>
@@ -443,6 +456,10 @@ prepare_for_encode(false, _Seen) ->
     false;
 prepare_for_encode(V, _Seen) when is_integer(V) -> V;
 prepare_for_encode(V, _Seen) when is_float(V) -> V;
+prepare_for_encode({beamtalk_string, Bin}, _Seen) when is_binary(Bin) ->
+    %% BT-4173: a String emits as its bytes (bare binaries — Binary
+    %% values — pass through unchanged below).
+    Bin;
 prepare_for_encode(V, _Seen) when is_binary(V) -> V;
 prepare_for_encode(V, _Seen) when is_atom(V) ->
     %% Convert atoms (symbols) to strings for YAML compatibility
@@ -472,7 +489,19 @@ Encode a map's entries as a YAML mapping, stripping the `$beamtalk_class` tag.
 -spec encode_map_fields(map(), [term()]) -> map().
 encode_map_fields(Map, Seen) ->
     Cleaned = maps:remove('$beamtalk_class', Map),
-    maps:map(fun(_K, V) -> prepare_for_encode(V, Seen) end, Cleaned).
+    maps:from_list([
+        {prepare_map_key(K), prepare_for_encode(V, Seen)}
+     || {K, V} <- maps:to_list(Cleaned)
+    ]).
+
+-doc """
+Prepare a map key for YAML emission (BT-4173): String keys arrive
+tagged — unwrap to bytes. Every other key passes through to
+`render_key/1` exactly as before.
+""".
+-spec prepare_map_key(term()) -> term().
+prepare_map_key({beamtalk_string, Bin}) when is_binary(Bin) -> Bin;
+prepare_map_key(K) -> K.
 
 -doc """
 Dispatch the `asYaml` conversion hook on a custom object (mirrors `asJson`).

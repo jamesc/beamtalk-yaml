@@ -32,11 +32,13 @@ parse_float_test() ->
 
 parse_string_test() ->
     application:ensure_all_started(yamerl),
-    ?assertEqual(<<"hello">>, unwrap_ok(beamtalk_yaml:'parse:'(<<"hello">>))).
+    ?assertEqual({beamtalk_string, <<"hello">>}, unwrap_ok(beamtalk_yaml:'parse:'(<<"hello">>))).
 
 parse_unicode_string_test() ->
     application:ensure_all_started(yamerl),
-    ?assertEqual(<<"héllo"/utf8>>, unwrap_ok(beamtalk_yaml:'parse:'(<<"héllo"/utf8>>))).
+    ?assertEqual(
+        {beamtalk_string, <<"héllo"/utf8>>}, unwrap_ok(beamtalk_yaml:'parse:'(<<"héllo"/utf8>>))
+    ).
 
 parse_true_test() ->
     application:ensure_all_started(yamerl),
@@ -74,7 +76,7 @@ parse_integer_sequence_test() ->
 parse_mixed_sequence_test() ->
     application:ensure_all_started(yamerl),
     ?assertEqual(
-        [1, <<"hello">>, true, nil],
+        [1, {beamtalk_string, <<"hello">>}, true, nil],
         unwrap_ok(beamtalk_yaml:'parse:'(<<"[1, hello, true, null]">>))
     ).
 
@@ -89,15 +91,15 @@ parse_nested_sequence_test() ->
 parse_string_key_mapping_test() ->
     application:ensure_all_started(yamerl),
     Result = unwrap_ok(beamtalk_yaml:'parse:'(<<"{name: Ada, age: 36}">>)),
-    ?assertEqual(<<"Ada">>, maps:get(<<"name">>, Result)),
-    ?assertEqual(36, maps:get(<<"age">>, Result)).
+    ?assertEqual({beamtalk_string, <<"Ada">>}, maps:get({beamtalk_string, <<"name">>}, Result)),
+    ?assertEqual(36, maps:get({beamtalk_string, <<"age">>}, Result)).
 
 parse_integer_key_mapping_test() ->
     application:ensure_all_started(yamerl),
     %% Integer keys remain as integers (not coerced to strings)
     Result = unwrap_ok(beamtalk_yaml:'parse:'(<<"{1: one, 2: two}">>)),
-    ?assertEqual(<<"one">>, maps:get(1, Result)),
-    ?assertEqual(<<"two">>, maps:get(2, Result)).
+    ?assertEqual({beamtalk_string, <<"one">>}, maps:get(1, Result)),
+    ?assertEqual({beamtalk_string, <<"two">>}, maps:get(2, Result)).
 
 parse_empty_mapping_test() ->
     application:ensure_all_started(yamerl),
@@ -108,9 +110,9 @@ parse_empty_mapping_test() ->
 parse_nested_mapping_test() ->
     application:ensure_all_started(yamerl),
     Result = unwrap_ok(beamtalk_yaml:'parse:'(<<"{user: {name: Ada, age: 36}}">>)),
-    User = maps:get(<<"user">>, Result),
-    ?assertEqual(<<"Ada">>, maps:get(<<"name">>, User)),
-    ?assertEqual(36, maps:get(<<"age">>, User)).
+    User = maps:get({beamtalk_string, <<"user">>}, Result),
+    ?assertEqual({beamtalk_string, <<"Ada">>}, maps:get({beamtalk_string, <<"name">>}, User)),
+    ?assertEqual(36, maps:get({beamtalk_string, <<"age">>}, User)).
 
 %%% ============================================================================
 %%% parse: — type errors
@@ -209,46 +211,49 @@ parse_all_type_error_test() ->
 %%% ============================================================================
 
 generate_integer_test() ->
-    ?assertEqual(<<"42">>, beamtalk_yaml:'generate:'(42)).
+    ?assertEqual({beamtalk_string, <<"42">>}, beamtalk_yaml:'generate:'(42)).
 
 generate_negative_integer_test() ->
-    ?assertEqual(<<"-7">>, beamtalk_yaml:'generate:'(-7)).
+    ?assertEqual({beamtalk_string, <<"-7">>}, beamtalk_yaml:'generate:'(-7)).
 
 generate_float_test() ->
-    ?assertEqual(<<"3.14">>, beamtalk_yaml:'generate:'(3.14)).
+    ?assertEqual({beamtalk_string, <<"3.14">>}, beamtalk_yaml:'generate:'(3.14)).
 
 generate_string_test() ->
-    ?assertEqual(<<"\"hello\"">>, beamtalk_yaml:'generate:'(<<"hello">>)).
+    ?assertEqual({beamtalk_string, <<"\"hello\"">>}, beamtalk_yaml:'generate:'(<<"hello">>)).
 
 generate_string_with_special_chars_test() ->
     %% Double-quotes and backslashes must be escaped
-    ?assertEqual(<<"\"a\\\"b\"">>, beamtalk_yaml:'generate:'(<<"a\"b">>)).
+    ?assertEqual({beamtalk_string, <<"\"a\\\"b\"">>}, beamtalk_yaml:'generate:'(<<"a\"b">>)).
 
 generate_true_test() ->
-    ?assertEqual(<<"true">>, beamtalk_yaml:'generate:'(true)).
+    ?assertEqual({beamtalk_string, <<"true">>}, beamtalk_yaml:'generate:'(true)).
 
 generate_false_test() ->
-    ?assertEqual(<<"false">>, beamtalk_yaml:'generate:'(false)).
+    ?assertEqual({beamtalk_string, <<"false">>}, beamtalk_yaml:'generate:'(false)).
 
 generate_nil_test() ->
-    ?assertEqual(<<"null">>, beamtalk_yaml:'generate:'(nil)).
+    ?assertEqual({beamtalk_string, <<"null">>}, beamtalk_yaml:'generate:'(nil)).
 
 generate_empty_list_test() ->
-    ?assertEqual(<<"[]">>, beamtalk_yaml:'generate:'([])).
+    ?assertEqual({beamtalk_string, <<"[]">>}, beamtalk_yaml:'generate:'([])).
 
 generate_integer_list_test() ->
-    ?assertEqual(<<"[1, 2, 3]">>, beamtalk_yaml:'generate:'([1, 2, 3])).
+    ?assertEqual({beamtalk_string, <<"[1, 2, 3]">>}, beamtalk_yaml:'generate:'([1, 2, 3])).
 
 generate_empty_map_test() ->
-    ?assertEqual(<<"{}">>, beamtalk_yaml:'generate:'(#{})).
+    ?assertEqual({beamtalk_string, <<"{}">>}, beamtalk_yaml:'generate:'(#{})).
 
 generate_map_test() ->
     %% Single key to avoid ordering non-determinism
-    ?assertEqual(<<"{\"name\": \"Ada\"}">>, beamtalk_yaml:'generate:'(#{<<"name">> => <<"Ada">>})).
+    ?assertEqual(
+        {beamtalk_string, <<"{\"name\": \"Ada\"}">>},
+        beamtalk_yaml:'generate:'(#{<<"name">> => <<"Ada">>})
+    ).
 
 generate_atom_as_string_test() ->
     %% Atoms are converted to strings for YAML compatibility
-    ?assertEqual(<<"\"ok\"">>, beamtalk_yaml:'generate:'(ok)).
+    ?assertEqual({beamtalk_string, <<"\"ok\"">>}, beamtalk_yaml:'generate:'(ok)).
 
 generate_type_error_test() ->
     %% Tuples cannot be serialised to YAML
@@ -272,7 +277,8 @@ roundtrip_float_test() ->
 roundtrip_string_test() ->
     application:ensure_all_started(yamerl),
     ?assertEqual(
-        <<"hello">>, unwrap_ok(beamtalk_yaml:'parse:'(beamtalk_yaml:'generate:'(<<"hello">>)))
+        {beamtalk_string, <<"hello">>},
+        unwrap_ok(beamtalk_yaml:'parse:'(beamtalk_yaml:'generate:'(<<"hello">>)))
     ).
 
 roundtrip_true_test() ->
@@ -293,19 +299,21 @@ roundtrip_map_test() ->
     application:ensure_all_started(yamerl),
     Original = #{<<"name">> => <<"Ada">>, <<"age">> => 36},
     Result = unwrap_ok(beamtalk_yaml:'parse:'(beamtalk_yaml:'generate:'(Original))),
-    ?assertEqual(<<"Ada">>, maps:get(<<"name">>, Result)),
-    ?assertEqual(36, maps:get(<<"age">>, Result)).
+    ?assertEqual({beamtalk_string, <<"Ada">>}, maps:get({beamtalk_string, <<"name">>}, Result)),
+    ?assertEqual(36, maps:get({beamtalk_string, <<"age">>}, Result)).
 
 roundtrip_nested_test() ->
     application:ensure_all_started(yamerl),
     Original = #{<<"user">> => #{<<"age">> => 36}},
     Result = unwrap_ok(beamtalk_yaml:'parse:'(beamtalk_yaml:'generate:'(Original))),
-    ?assertEqual(36, maps:get(<<"age">>, maps:get(<<"user">>, Result))).
+    ?assertEqual(
+        36, maps:get({beamtalk_string, <<"age">>}, maps:get({beamtalk_string, <<"user">>}, Result))
+    ).
 
 roundtrip_unicode_test() ->
     application:ensure_all_started(yamerl),
     ?assertEqual(
-        <<"héllo"/utf8>>,
+        {beamtalk_string, <<"héllo"/utf8>>},
         unwrap_ok(beamtalk_yaml:'parse:'(beamtalk_yaml:'generate:'(<<"héllo"/utf8>>)))
     ).
 
@@ -314,12 +322,12 @@ roundtrip_integer_key_map_test() ->
     application:ensure_all_started(yamerl),
     Original = #{1 => <<"one">>, 2 => <<"two">>},
     Result = unwrap_ok(beamtalk_yaml:'parse:'(beamtalk_yaml:'generate:'(Original))),
-    ?assertEqual(<<"one">>, maps:get(1, Result)),
-    ?assertEqual(<<"two">>, maps:get(2, Result)).
+    ?assertEqual({beamtalk_string, <<"one">>}, maps:get(1, Result)),
+    ?assertEqual({beamtalk_string, <<"two">>}, maps:get(2, Result)).
 
 generate_integer_key_unquoted_test() ->
     %% Integer keys must be emitted without quotes so they parse as integers
-    Generated = beamtalk_yaml:'generate:'(#{1 => <<"x">>}),
+    {beamtalk_string, Generated} = beamtalk_yaml:'generate:'(#{1 => <<"x">>}),
     ?assertNotMatch(<<"{\"-", _/binary>>, Generated),
     ?assertNotMatch(<<"{\"", _/binary>>, Generated).
 
@@ -337,7 +345,7 @@ parse_file_mapping_test() ->
     application:ensure_all_started(yamerl),
     Path = write_temp_yaml(<<"{name: Ada, age: 36}">>),
     Result = unwrap_ok(beamtalk_yaml:'parseFile:'(Path)),
-    ?assertEqual(<<"Ada">>, maps:get(<<"name">>, Result)),
+    ?assertEqual({beamtalk_string, <<"Ada">>}, maps:get({beamtalk_string, <<"name">>}, Result)),
     file:delete(Path).
 
 parse_file_not_found_test() ->
@@ -377,7 +385,7 @@ parse_all_alias_test() ->
     ?assertEqual([42, 43], unwrap_ok(beamtalk_yaml:parseAll(<<"42\n---\n43">>))).
 
 generate_alias_test() ->
-    ?assertEqual(<<"42">>, beamtalk_yaml:generate(42)).
+    ?assertEqual({beamtalk_string, <<"42">>}, beamtalk_yaml:generate(42)).
 
 parse_file_alias_type_error_test() ->
     ?assertError(
@@ -392,19 +400,19 @@ parse_file_alias_type_error_test() ->
 string_leaf_answers_string_test() ->
     application:ensure_all_started(yamerl),
     Leaf = unwrap_ok(beamtalk_yaml:'parse:'(<<"hello">>)),
-    ?assertEqual(<<"hello">>, Leaf),
+    ?assertEqual({beamtalk_string, <<"hello">>}, Leaf),
     ?assertEqual('String', beamtalk_primitive:class_of(Leaf)).
 
 unicode_leaf_answers_string_test() ->
     application:ensure_all_started(yamerl),
     Leaf = unwrap_ok(beamtalk_yaml:'parse:'(<<"héllo"/utf8>>)),
-    ?assertEqual(<<"héllo"/utf8>>, Leaf),
+    ?assertEqual({beamtalk_string, <<"héllo"/utf8>>}, Leaf),
     ?assertEqual('String', beamtalk_primitive:class_of(Leaf)).
 
 sequence_items_answer_string_test() ->
     application:ensure_all_started(yamerl),
     Items = unwrap_ok(beamtalk_yaml:'parse:'(<<"[a, b]">>)),
-    ?assertEqual([<<"a">>, <<"b">>], Items),
+    ?assertEqual([{beamtalk_string, <<"a">>}, {beamtalk_string, <<"b">>}], Items),
     lists:foreach(
         fun(I) -> ?assertEqual('String', beamtalk_primitive:class_of(I)) end,
         Items
@@ -413,8 +421,10 @@ sequence_items_answer_string_test() ->
 mapping_keys_and_values_answer_string_test() ->
     application:ensure_all_started(yamerl),
     Map = unwrap_ok(beamtalk_yaml:'parse:'(<<"{\"name\": \"Ada\"}">>)),
-    ?assertEqual(<<"Ada">>, maps:get(<<"name">>, Map)),
-    ?assertEqual('String', beamtalk_primitive:class_of(maps:get(<<"name">>, Map))),
+    ?assertEqual({beamtalk_string, <<"Ada">>}, maps:get({beamtalk_string, <<"name">>}, Map)),
+    ?assertEqual(
+        'String', beamtalk_primitive:class_of(maps:get({beamtalk_string, <<"name">>}, Map))
+    ),
     lists:foreach(
         fun(K) -> ?assertEqual('String', beamtalk_primitive:class_of(K)) end,
         maps:keys(Map)
@@ -430,7 +440,7 @@ integer_keys_keep_class_test() ->
 parse_all_leaves_answer_string_test() ->
     application:ensure_all_started(yamerl),
     Docs = unwrap_ok(beamtalk_yaml:'parseAll:'(<<"a\n---\nb">>)),
-    ?assertEqual([<<"a">>, <<"b">>], Docs),
+    ?assertEqual([{beamtalk_string, <<"a">>}, {beamtalk_string, <<"b">>}], Docs),
     lists:foreach(
         fun(D) -> ?assertEqual('String', beamtalk_primitive:class_of(D)) end,
         Docs
