@@ -327,7 +327,7 @@ roundtrip_integer_key_map_test() ->
 
 generate_integer_key_unquoted_test() ->
     %% Integer keys must be emitted without quotes so they parse as integers
-    Generated = beamtalk_yaml:'generate:'(#{1 => <<"x">>}),
+    {beamtalk_string, Generated} = beamtalk_yaml:'generate:'(#{1 => <<"x">>}),
     ?assertNotMatch(<<"{\"-", _/binary>>, Generated),
     ?assertNotMatch(<<"{\"", _/binary>>, Generated).
 
