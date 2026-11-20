@@ -71,8 +71,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// (Yaml parse: "[1, 2, 3]") unwrap       // => #(1, 2, 3)
   /// (Yaml parse: "null") unwrap            // => nil
   /// ```
-  class sealed parse: yamlString :: String -> Result(YamlValue, Error) =>
-    self delegate
+  class parse: yamlString :: String -> Result(YamlValue, Error) => self delegate
 
   /// Parse a multi-document YAML string into a List of values (class method).
   ///
@@ -88,7 +87,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// nl := $\n asString
   /// (Yaml parseAll: "42" ++ nl ++ "---" ++ nl ++ "43") unwrap   // => #(42, 43)
   /// ```
-  class sealed parseAll: yamlString :: String -> Result(List(YamlValue), Error) =>
+  class parseAll: yamlString :: String -> Result(List(YamlValue), Error) =>
     self delegate
 
   /// Generate a YAML string from a Beamtalk value (class method).
@@ -105,7 +104,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// Yaml generate: nil                     // => null
   /// Yaml generate: 42                      // => 42
   /// ```
-  class sealed generate: value :: Object -> String => self delegate
+  class generate: value :: Object -> String => self delegate
 
   /// Generate a pretty-printed YAML string in block style (class method).
   ///
@@ -117,7 +116,7 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// ```beamtalk
   /// Yaml prettyPrint: #{"name" => "Ada", "age" => 36}
   /// ```
-  class sealed prettyPrint: value :: Object -> String => self delegate
+  class prettyPrint: value :: Object -> String => self delegate
 
   /// Parse a YAML file into a Beamtalk value (class method).
   ///
@@ -128,5 +127,4 @@ sealed typed Object subclass: Yaml native: beamtalk_yaml
   /// ```beamtalk
   /// (Yaml parseFile: "/etc/myapp.yaml") unwrap   // => _ (depends on file contents)
   /// ```
-  class sealed parseFile: path :: String -> Result(YamlValue, Error) =>
-    self delegate
+  class parseFile: path :: String -> Result(YamlValue, Error) => self delegate
