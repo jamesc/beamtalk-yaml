@@ -53,7 +53,7 @@ type YamlValue = Nil | Boolean | Integer | Float | String | List | Dictionary
 /// (Yaml parseFile: "/etc/myapp.yaml") unwrap
 /// // => _ (depends on file contents)
 /// ```
-sealed typed Object subclass: Yaml native: beamtalk_yaml
+sealed typed Object subclass: Yaml native: yaml_native
 
   /// Parse a YAML string into a Beamtalk value (class method).
   ///
