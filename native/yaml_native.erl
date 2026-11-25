@@ -3,7 +3,7 @@
 
 %%% **DDD Context:** Object System Context
 
--module(beamtalk_yaml).
+-module(yaml_native).
 
 -moduledoc """
 YAML class implementation — YAML parsing and generation via yamerl.
@@ -199,23 +199,23 @@ be read or the YAML is invalid. Type error (non-String argument) still raises.
 %%% FFI aliases — no-colon names for Erlang FFI dispatch
 %%% ============================================================================
 
--doc "FFI alias for parse:/1 — called via (Erlang beamtalk_yaml) parse: str.".
+-doc "FFI alias for parse:/1 — called via (Erlang yaml_native) parse: str.".
 -spec parse(binary() | beamtalk_string:t()) -> beamtalk_result:t().
 parse(X) -> 'parse:'(X).
 
--doc "FFI alias for parseAll:/1 — called via (Erlang beamtalk_yaml) parseAll: str.".
+-doc "FFI alias for parseAll:/1 — called via (Erlang yaml_native) parseAll: str.".
 -spec parseAll(binary() | beamtalk_string:t()) -> beamtalk_result:t().
 parseAll(X) -> 'parseAll:'(X).
 
--doc "FFI alias for generate:/1 — called via (Erlang beamtalk_yaml) generate: val.".
+-doc "FFI alias for generate:/1 — called via (Erlang yaml_native) generate: val.".
 -spec generate(term()) -> beamtalk_string:t().
 generate(X) -> 'generate:'(X).
 
--doc "FFI alias for prettyPrint:/1 — called via (Erlang beamtalk_yaml) prettyPrint: val.".
+-doc "FFI alias for prettyPrint:/1 — called via (Erlang yaml_native) prettyPrint: val.".
 -spec prettyPrint(term()) -> beamtalk_string:t().
 prettyPrint(X) -> 'prettyPrint:'(X).
 
--doc "FFI alias for parseFile:/1 — called via (Erlang beamtalk_yaml) parseFile: str.".
+-doc "FFI alias for parseFile:/1 — called via (Erlang yaml_native) parseFile: str.".
 -spec parseFile(binary() | beamtalk_string:t()) -> beamtalk_result:t().
 parseFile(X) -> 'parseFile:'(X).
 
@@ -331,7 +331,7 @@ convert_node(Other, Selector) ->
     %% Log only the node type tag to avoid exposing potentially sensitive values
     %% from YAML files (e.g. API keys, passwords) in log output.
     NodeType = element(1, Other),
-    ?LOG_WARNING("beamtalk_yaml: unsupported yamerl node type", #{node_type => NodeType}),
+    ?LOG_WARNING("yaml_native: unsupported yamerl node type", #{node_type => NodeType}),
     Error0 = beamtalk_error:new(parse_error, 'Yaml'),
     Error1 = beamtalk_error:with_selector(Error0, Selector),
     Error2 = beamtalk_error:with_details(Error1, #{node_type => NodeType}),
